@@ -43,11 +43,14 @@ class HandPoseModel(nn.Module):
 
     def stage_block(self,stage,padding=1):
         layer = []
-        for n in range(1,6):
-            layer.append(('Mconv{n}_stage{stage}'.format(n=n,stage=stage), nn.Conv2d(in_channels=150,out_channels=128,kernel_size=7,stride=1,padding=1)))
+        
+        layer.append(('Mconv1_stage{stage}'.format(stage=stage), nn.Conv2d(in_channels=150,out_channels=128,kernel_size=7,stride=1,padding=1)))
+        layer.append(('Mrelu1_stage{stage}'.format(stage=stage), nn.ReLU(inplace=True)))
+        for n in range(2,7):
+            layer.append(('Mconv{n}_stage{stage}'.format(n=n,stage=stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=7,stride=1,padding=1)))
             layer.append(('Mrelu{n}_stage{stage}'.format(n=n,stage=stage), nn.ReLU(inplace=True)))
-        layer.append(('Mconv6_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=0)))
-        layer.append(('Mrelu6_stage{}'.format(stage), nn.ReLU(inplace=True)))
+        #layer.append(('Mconv6_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=0)))
+        #layer.append(('Mrelu6_stage{}'.format(stage), nn.ReLU(inplace=True)))
         layer.append(('Mconv7_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=22,kernel_size=1,stride=1,padding=0)))
 
         return nn.Sequential(OrderedDict(layer))
@@ -66,44 +69,22 @@ class HandPoseModel(nn.Module):
         out = self.relu6_1(out)
         prev = self.conv6_2_CPM(out)
 
-        out = torch.cat([conv5_3_CPM,prev],1)
+        out1 = torch.cat([conv5_3_CPM,prev],1)
+        print(out1.shape)
+        
+        prev = self.prev_stage2(out1)
+        out2 = torch.cat([conv5_3_CPM,prev],1)
 
-        prev = self.prev_stage2(out)
-        out = torch.cat([conv5_3_CPM,prev],1)
+        prev = self.prev_stage3(out2)
+        out3 = torch.cat([conv5_3_CPM,prev],1)
 
-        prev = self.prev_stage3(out)
-        out = torch.cat([conv5_3_CPM,prev],1)
+        prev = self.prev_stage4(out3)
+        out4 = torch.cat([conv5_3_CPM,prev],1)
 
-        prev = self.prev_stage4(out)
-        out = torch.cat([conv5_3_CPM,prev],1)
+        prev = self.prev_stage5(out4)
+        out5 = torch.cat([conv5_3_CPM,prev],1)
 
-        prev = self.prev_stage5(out)
-        out = torch.cat([conv5_3_CPM,prev],1)
-
-        out = self.prev_stage6(out)
+        out = self.prev_stage6(out5)
 
         return out
-
-
-
-
-
-        
-        
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
 
