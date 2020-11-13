@@ -46,11 +46,11 @@ class HandPoseModel(nn.Module):
         
         layer.append(('Mconv1_stage{stage}'.format(stage=stage), nn.Conv2d(in_channels=150,out_channels=128,kernel_size=7,stride=1,padding=1)))
         layer.append(('Mrelu1_stage{stage}'.format(stage=stage), nn.ReLU(inplace=True)))
-        for n in range(2,7):
-            layer.append(('Mconv{n}_stage{stage}'.format(n=n,stage=stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=7,stride=1,padding=1)))
+        for n in range(2,6):
+            layer.append(('Mconv{n}_stage{stage}'.format(n=n,stage=stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=1)))
             layer.append(('Mrelu{n}_stage{stage}'.format(n=n,stage=stage), nn.ReLU(inplace=True)))
-        #layer.append(('Mconv6_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=0)))
-        #layer.append(('Mrelu6_stage{}'.format(stage), nn.ReLU(inplace=True)))
+        layer.append(('Mconv6_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=0)))
+        layer.append(('Mrelu6_stage{}'.format(stage), nn.ReLU(inplace=True)))
         layer.append(('Mconv7_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=22,kernel_size=1,stride=1,padding=0)))
 
         return nn.Sequential(OrderedDict(layer))
@@ -63,11 +63,13 @@ class HandPoseModel(nn.Module):
         out = self.block5(out)
 
         conv5_3_CPM = self.conv5_3_CPM(out)
+        print(conv5_3_CPM.shape)
         out = self.relu5_3_CPM(conv5_3_CPM)
 
         out = self.conv6_1_CPM(out)
         out = self.relu6_1(out)
         prev = self.conv6_2_CPM(out)
+        print(prev.shape)
 
         out1 = torch.cat([conv5_3_CPM,prev],1)
         print(out1.shape)
