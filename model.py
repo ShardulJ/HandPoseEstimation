@@ -1,18 +1,19 @@
 import torch
 import torch.nn as nn
+from collections import OrderedDict
 
 def make_block(m, n, in_channels,out_channels,kernel_size,stride,padding=1):
     layer = []
-    for i in range(m):
+    for i in range(1,m+1):
         if i == 1:
-            layer.append('conv_'+n+'_'+i, nn.Conv2d(in_channels,out_channels,kernel_size,stride,padding) 
-            layer.append('relu_'+n+'_'+i, nn.ReLU(inplace=True))
+            layer.append(('conv'+str(n)+'_'+str(i), nn.Conv2d(in_channels,out_channels,kernel_size,stride,padding))) 
+            layer.append(('relu'+str(n)+'_'+str(i), nn.ReLU(inplace=True)))
         else: 
-            layer.append('conv_'+n+'_'+i, nn.Conv2d(out_channels,out_channels,kernel_size,stride,padding)
-            layer.append('relu_'+n+'_'+i, nn.ReLU(inplace=True))
-    layer.append('pool'+n+'_stage1', nn.MaxPool2d(kernel_size=2,stride=2,padding=0)
+            layer.append(('conv'+str(n)+'_'+str(i), nn.Conv2d(out_channels,out_channels,kernel_size,stride,padding)))
+            layer.append(('relu'+str(n)+'_'+str(i), nn.ReLU(inplace=True)))
+    layer.append(('pool'+str(n)+'_stage1', nn.MaxPool2d(kernel_size=2,stride=2,padding=0)))
     
-    return nn.Sequential(layer)
+    return nn.Sequential(OrderedDict(layer))
 
 class HandPoseModel(nn.Module):
     def __init__(self):
@@ -28,10 +29,10 @@ class HandPoseModel(nn.Module):
         self.conv5_3_CPM = nn.Conv2d(in_channels=512,out_channels=128,kernel_size=3,stride=1,padding=1)
         self.relu5_3_CPM = nn.ReLU(inplace=True)
         
-        self.conv_6_1 = nn.Conv2d(in_channels=128,out_channels=512,kernel_size=1,stride=1,padding=0)
-        self.relu_6_1 = nn.ReLU(inplace=True)
+        self.conv6_1_CPM = nn.Conv2d(in_channels=128,out_channels=512,kernel_size=1,stride=1,padding=0)
+        self.relu6_1 = nn.ReLU(inplace=True)
         
-        self.conv_6_2_CPM = nn.Conv2d(in_channels=512,out_channels=22,kernel_size=1,stride=1,padding=0)
+        self.conv6_2_CPM = nn.Conv2d(in_channels=512,out_channels=22,kernel_size=1,stride=1,padding=0)
         
         self.prev_stage2 = self.stage_block(2)
         self.prev_stage3 = self.stage_block(3)
@@ -43,13 +44,13 @@ class HandPoseModel(nn.Module):
     def stage_block(self,stage,padding=1):
         layer = []
         for n in range(1,6):
-            layer.append('Mconv{n}_stage{stage}'.format(n=n,stage=stage), nn.Conv2d(in_channels=150,out_channels=128,kernel_size=7,stride=1,padding=1))
-            layer.append('Mrelu{n}_stage{stage}.format(n=n,stage=stage), nn.ReLU(inplace=True))
-        layer.append('Mconv6_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=0))
-        layer.append('Mrelu6_stage{}'.format(stage), nn.ReLU(inplace=True))
-        layer.append('Mconv7_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=22,kernel_size=1,stride=1,padding=0))
+            layer.append(('Mconv{n}_stage{stage}'.format(n=n,stage=stage), nn.Conv2d(in_channels=150,out_channels=128,kernel_size=7,stride=1,padding=1)))
+            layer.append(('Mrelu{n}_stage{stage}'.format(n=n,stage=stage), nn.ReLU(inplace=True)))
+        layer.append(('Mconv6_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=128,kernel_size=1,stride=1,padding=0)))
+        layer.append(('Mrelu6_stage{}'.format(stage), nn.ReLU(inplace=True)))
+        layer.append(('Mconv7_stage{}'.format(stage), nn.Conv2d(in_channels=128,out_channels=22,kernel_size=1,stride=1,padding=0)))
 
-        return nn.Sequential(layer)
+        return nn.Sequential(OrderedDict(layer))
 
     def forward(self,x):
         out = self.block1(x)
@@ -61,9 +62,9 @@ class HandPoseModel(nn.Module):
         conv5_3_CPM = self.conv5_3_CPM(out)
         out = self.relu5_3_CPM(conv5_3_CPM)
 
-        out = self.conv_6_1(out)
-        out = self.relu_6_1(out)
-        prev = self.conv_6_2_CPM(out)
+        out = self.conv6_1_CPM(out)
+        out = self.relu6_1(out)
+        prev = self.conv6_2_CPM(out)
 
         out = torch.cat([conv5_3_CPM,prev],1)
 
