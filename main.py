@@ -30,7 +30,7 @@ def find_peaks(heatmap_avg, threshold=0.1):
     all_peaks = []
     num_peaks = 0
         
-    for part in range():
+    for part in range(heatmap_avg.shape[-1]):
         map_orig = heatmap_avg[:, :, part]
         map_filt = gaussian_filter(map_orig, sigma=3)
         
@@ -62,7 +62,7 @@ def find_peaks(heatmap_avg, threshold=0.1):
 
 pretrained_weights = torch.load('./hand/pose_iter_102000.caffemodel.pt')
 model = HandPoseModel()
-model.load_state_dict(pretrained_weights,strict=False)
+#model.load_state_dict(pretrained_weights,strict=False)
 
 def _pad_image(image, stride=1, padvalue=0):
     assert len(image.shape) == 2 or len(image.shape) == 3
@@ -123,12 +123,26 @@ def process(model, image_orig,mode='heatmap'):
     
     return image_out
 
-if __name__ == '__main__':
-    print(model)
+def load_weights(model, state_dict):
+    model_state_dict = {}
+    for name in model.state_dict().keys():
+        if len(name.split('.')) == 3:
+            model_state_dict[name] = state_dict['.'.join(name.split('.')[1:])]
+        else:
+            model_state_dict[name] = state_dict[name]
+    model.load_state_dict(model_state_dict)
+    return model
+    
+if  __name__ == '__main__':
+    model = load_weights(model,pretrained_weights)
+    print(model.block2[0].weight)
+    #print(model.block1.conv2_1.weight.shape)
+    print(pretrained_weights['conv2_1.weight'])
+    """
     image = cv2.imread(TEST_IMAGE_PATH)
     image = cv2.resize(image, (960,540))
     image_out = process(model, image)
     plt.figure(figsize=(12,12))
     plt.imshow(image_out)
     plt.show()
-
+    """
