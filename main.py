@@ -60,10 +60,6 @@ def find_peaks(heatmap_avg, threshold=0.1):
 
 #image = image_loader(TEST_IMAGE_PATH)
 
-pretrained_weights = torch.load('./hand/pose_iter_102000.caffemodel.pt')
-model = HandPoseModel()
-#model.load_state_dict(pretrained_weights,strict=False)
-
 def _pad_image(image, stride=1, padvalue=0):
     assert len(image.shape) == 2 or len(image.shape) == 3
     h, w = image.shape[:2]
@@ -91,22 +87,26 @@ def process(model, image_orig,mode='heatmap'):
     print(image_tensor.shape)
 
     with torch.no_grad():
-        output = model(image_tensor).numpy()
-    print(output)
+        output = model(image_tensor)
+    print(output.shape)
     output = np.transpose(np.squeeze(output), (1, 2, 0))
-    #heatmap = cv2.resize(heatmap, (0, 0), fx=stride, fy=stride, interpolation=cv2.INTER_CUBIC)
+    output = cv2.resize(np.float32(output), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
     #output = output[:image_padded.shape[0] - pads[3], :image_padded.shape[1] - pads[2], :]
     output = cv2.resize(output, (image_orig.shape[1], image_orig.shape[0]))
+    print(output.shape)
     #heatmap_avg += (heatmap / len(multipliers))
     
     image_out = image_orig
-
-    mask = np.zeros_like(image_orig).astype(np.float32)
+    print(output[:,:,1])
+    
+    #something wrong below
+    mask = np.zeros_like(image_out).astype(np.float32)
     if mode == "heatmap":
-        for chn in range(0, output.shape[-1]-2):
+        for chn in range(0, output.shape[-1]):
             m = np.repeat(output[:,:,chn:chn+1],3, axis=2)
             m = 255*( np.abs(m)>0.2)            
             mask = mask + m*(mask==0)
+        print(mask)
         mask = np.clip(mask, 0, 255)
         image_out = image_out*0.8 + mask*0.2
     else:
@@ -134,15 +134,19 @@ def load_weights(model, state_dict):
     return model
     
 if  __name__ == '__main__':
+    
+    pretrained_weights = torch.load('./hand/pose_iter_102000.caffemodel.pt')
+    model = HandPoseModel()
+
     model = load_weights(model,pretrained_weights)
     print(model.block2[0].weight)
     #print(model.block1.conv2_1.weight.shape)
     print(pretrained_weights['conv2_1.weight'])
-    """
-    image = cv2.imread(TEST_IMAGE_PATH)
+  
+    image = cv2.cvtColor(cv2.imread(TEST_IMAGE_PATH), cv2.COLOR_BGR2RGB)
     image = cv2.resize(image, (960,540))
     image_out = process(model, image)
     plt.figure(figsize=(12,12))
     plt.imshow(image_out)
     plt.show()
-    """
+   
