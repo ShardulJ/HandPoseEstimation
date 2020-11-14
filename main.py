@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
-
+from IPython.display import clear_output
 import torch
 import torchvision.transforms as transforms
 
@@ -11,26 +11,13 @@ from PIL import Image
 
 from model import *
 
-TEST_IMAGE_PATH = './test_image.png'
-
-'''
-imsize = 256
-loader = transforms.Compose([transforms.Scale(imsize), transforms.ToTensor()])
-
-def image_loader(image_name):
-    """load image, returns cuda tensor"""
-    image = Image.open(image_name)
-    image = loader(image).float()
-    image = Variable(image, requires_grad=True)
-    image = image.unsqueeze(0)
-    return image
-'''
+TEST_IMAGE_PATH = './test.png.jpg'
 
 def find_peaks(heatmap_avg, threshold=0.1):
     all_peaks = []
     num_peaks = 0
         
-    for part in range(heatmap_avg.shape[-1]):
+    for part in range(22):
         map_orig = heatmap_avg[:, :, part]
         map_filt = gaussian_filter(map_orig, sigma=3)
         
@@ -46,7 +33,7 @@ def find_peaks(heatmap_avg, threshold=0.1):
         peaks_binary = np.logical_and.reduce(
             (map_filt >= map_L, map_filt >= map_T,
              map_filt >= map_R, map_filt >= map_B,
-             map_filt > thresh_1)
+             map_filt > threshold)
         )
         peaks = list(zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]))
         peaks_ids = range(num_peaks, num_peaks + len(peaks))
@@ -76,42 +63,40 @@ def _pad_image(image, stride=1, padvalue=0):
     return image_padded, pads
 
 def process(model, image_orig,mode='heatmap'):
-    scale = 368/image_orig.shape[1]
+    
+    heatmap_avg = np.zeros((image_orig.shape[0], image_orig.shape[1], 22))
+    scale = 368/image_orig.shape[0]
     scale = scale*2
-    image =  cv2.resize(image_orig, (0,0), fx=scale, fy=scale)
+    image =  cv2.resize(image_orig, (0,0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     image_padded, pads = _pad_image(image, 8, 128)
-    image_tensor = np.expand_dims(np.transpose(image_padded, (2, 0, 1)), 0)
-    image_tensor = np.float32(image_tensor) / 255.0 - 0.5
+    image_tensor = np.transpose(np.float32(image_padded[:, :, :, np.newaxis]), (3, 2, 0, 1)) / 256 - 0.5
     image_tensor = np.ascontiguousarray(image_tensor)
     image_tensor = torch.from_numpy(image_tensor).float()
-    print(image_tensor.shape)
 
     with torch.no_grad():
         output = model(image_tensor)
-    print(output.shape)
+    output = output.numpy()    
+
     output = np.transpose(np.squeeze(output), (1, 2, 0))
-    output = cv2.resize(np.float32(output), (0, 0), fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
-    #output = output[:image_padded.shape[0] - pads[3], :image_padded.shape[1] - pads[2], :]
-    output = cv2.resize(output, (image_orig.shape[1], image_orig.shape[0]))
-    print(output.shape)
-    #heatmap_avg += (heatmap / len(multipliers))
+    output = cv2.resize(output, (0, 0), fx=8, fy=8, interpolation=cv2.INTER_CUBIC)
+    output = output[:image_padded.shape[0] - pads[2], :image_padded.shape[1] - pads[3], :]
+    output = cv2.resize(output, (image_orig.shape[1], image_orig.shape[0]), interpolation=cv2.INTER_CUBIC)
     
+    heatmap_avg += output
     image_out = image_orig
-    print(output[:,:,1])
-    
+    print(heatmap_avg)
     #something wrong below
     mask = np.zeros_like(image_out).astype(np.float32)
     if mode == "heatmap":
-        for chn in range(0, output.shape[-1]):
-            m = np.repeat(output[:,:,chn:chn+1],3, axis=2)
+        for chn in range(0, heatmap_avg.shape[-1]):
+            m = np.repeat(heatmap_avg[:,:,chn:chn+1],3, axis=2)
             m = 255*( np.abs(m)>0.2)            
             mask = mask + m*(mask==0)
-        print(mask)
         mask = np.clip(mask, 0, 255)
         image_out = image_out*0.8 + mask*0.2
     else:
-        peaksR = find_peaks(out, peaks_th, sigma=sigma)[0]
-        peaksL = find_peaks(-out, peaks_th, sigma=sigma)[0]
+        peaksR = find_peaks(heatmap_avg, 0.1)[0]
+        peaksL = find_peaks(-heatmap_avg, 0.1)[0]
 
         print(peaksR)
         for peak in peaksR:
@@ -139,14 +124,37 @@ if  __name__ == '__main__':
     model = HandPoseModel()
 
     model = load_weights(model,pretrained_weights)
-    print(model.block2[0].weight)
-    #print(model.block1.conv2_1.weight.shape)
-    print(pretrained_weights['conv2_1.weight'])
-  
+    print(model.prev_stage6.Mconv7_stage6.bias)
+    #print(.conv2_1.weight.shape)
+    print(pretrained_weights['Mconv7_stage6.bias'])
+    
+
     image = cv2.cvtColor(cv2.imread(TEST_IMAGE_PATH), cv2.COLOR_BGR2RGB)
     image = cv2.resize(image, (960,540))
     image_out = process(model, image)
     plt.figure(figsize=(12,12))
     plt.imshow(image_out)
+    plt.imsave('image2.png',image_out)
     plt.show()
-   
+    
+    """
+    cap = cv2.VideoCapture(0)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    while 1:
+        ret, image = cap.read()
+        clear_output()
+
+        image_orig = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #start = clock()
+        image_out = process(model, image)
+        #stop = clock()
+        #took = stop-start
+        #cv2.putText(image_out,'Inference: {}s, post: {}s'.format(  np.round(inference_took,3) , np.round(took-inference_took,3) ),(10,30), font, 1,(255,255,255),2,cv2.LINE_AA)
+
+    #    cv2.imshow("OpenPose's stolen hand tracking network in Keras", cv2.cvtColor(image_out, cv2.COLOR_RGB2BGR))
+        cv2.imshow("OpenPose's stolen hand tracking network in Keras", image_out)
+        cv2.waitKey(1)
+
+    cap.release()
+    """
